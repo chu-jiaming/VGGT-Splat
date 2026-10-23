@@ -1,0 +1,21 @@
+# macOS Finder metadata
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+.venv
+
+# Captures, checkpoints and experiment outputs stay off git
+/data/
+/outputs/
+/results/
+*.ckpt
+*.pt
+*.pth
+*.ply
+*.npy
+*.npz
+*.mp4
+*.MOV
+events.out.tfevents.*
