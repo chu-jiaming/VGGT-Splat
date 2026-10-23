@@ -13,4 +13,6 @@ Pose refinement during 3DGS training is used as an engineering step.
 
 ## License
 
-TBD. VGGT weights are used under their original license; see the VGGT repository.
+Code in this repository is released under the [MIT License](LICENSE).
+
+Third-party models and libraries keep their own licenses. In particular, VGGT weights are used under their original license (non-commercial use); see the VGGT repository.
