@@ -9,7 +9,7 @@ Casual phone video → [VGGT](https://github.com/facebookresearch/vggt) feed-for
 
 Pose refinement during 3DGS training is used as an engineering step.
 
-**Status**: work in progress (target 2026-11-06).
+**Status**: work in progress (target 2026-11-11).
 
 ## License
 
