@@ -10,6 +10,7 @@ __pycache__/
 /data/
 /outputs/
 /results/
+/runs/
 *.ckpt
 *.pt
 *.pth
