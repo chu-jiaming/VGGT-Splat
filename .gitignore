@@ -19,3 +19,8 @@ __pycache__/
 *.mp4
 *.MOV
 events.out.tfevents.*
+
+# Planning docs, daily notes and Claude instructions stay local
+/docs/
+/notes/
+/CLAUDE.md
