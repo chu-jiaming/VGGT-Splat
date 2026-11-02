@@ -67,11 +67,12 @@ def intrinsics_to_original(intrinsic, width, height):
     return K
 
 
-def build_model(names, size, extrinsic, intrinsic, depth, conf, colors, conf_thres, max_points, shared_camera, rng):
+def build_model(names, size, extrinsic, intrinsic, depth, conf, colors, conf_thres, conf_percentile, max_points, shared_camera, rng):
     """由 VGGT 预测构造 COLMAP 模型（cameras, images, xyz, rgb）。
 
     extrinsic (S, 3, 4) w2c，intrinsic (S, 3, 3) 模型分辨率，depth / conf (S, h, w)，colors (S, h, w, 3) uint8。
     每个 3D 点由一帧的一个像素反投影得到，track 只含这一帧的这个像素。
+    conf_percentile 不为 None 时忽略 conf_thres，改用全部有效像素置信度的该百分位数作阈值。
     """
     S, h, w = depth.shape
     W, H = size
@@ -85,14 +86,22 @@ def build_model(names, size, extrinsic, intrinsic, depth, conf, colors, conf_thr
     R, t = extrinsic[:, :3, :3], extrinsic[:, :3, 3]
     world = np.einsum("sij,shwj->shwi", R.transpose(0, 2, 1), cam - t[:, None, None, :])
 
-    mask = (conf >= conf_thres) & (depth > 0)
+    # VGGT 的 conf = 1 + exp(·)，绝对数值随场景变化很大（garden 16 帧 52% ≥ 5，desk 16 帧中位数 1.0、最大 3.0），
+    # 固定阈值在有的场景会一个点都不剩，百分位阈值（同官方 gradio demo）在各场景保留比例一致。
+    # 百分位模式用严格大于：desk 有过半像素的 conf 恰好是 1.0（exp(·) 在 fp32 里下溢），
+    # 中位数落在 1.0 上，用 >= 会全部通过
+    if conf_percentile is not None:
+        conf_thres = float(np.percentile(conf[depth > 0], conf_percentile))
+        mask = (conf > conf_thres) & (depth > 0)
+    else:
+        mask = (conf >= conf_thres) & (depth > 0)
     idx = np.flatnonzero(mask)
     if len(idx) > max_points:
         idx = np.sort(rng.choice(idx, size=max_points, replace=False))
     f_idx, v_idx, u_idx = np.unravel_index(idx, mask.shape)
     xyz = world.reshape(-1, 3)[idx]
     rgb = colors.reshape(-1, 3)[idx]
-    print(f"{mask.sum()} / {mask.size} 像素通过置信度阈值 {conf_thres}，保留 {len(idx)} 个点")
+    print(f"{mask.sum()} / {mask.size} 像素通过置信度阈值 {conf_thres:.3f}，保留 {len(idx)} 个点")
 
     K = intrinsics_to_original(intrinsic, W, H)
     if shared_camera:
@@ -158,6 +167,7 @@ def main():
     p.add_argument("--out_dir", required=True)
     p.add_argument("--list", help="只用这些帧：每行一个 image_dir 下的文件名")
     p.add_argument("--conf_thres", type=float, default=5.0, help="深度置信度阈值（同官方脚本默认值）")
+    p.add_argument("--conf_percentile", type=float, help="按百分位取阈值（如 50 = 丢掉置信度最低的一半），给了就忽略 --conf_thres")
     p.add_argument("--max_points", type=int, default=100000, help="点云随机下采样上限（同官方脚本）")
     p.add_argument("--shared_camera", action="store_true", help="所有帧共用一个相机（fx/fy 取平均）")
     p.add_argument("--seed", type=int, default=42)
@@ -179,7 +189,7 @@ def main():
     colors = (images_np.transpose(0, 2, 3, 1) * 255).round().astype(np.uint8)
     cameras, images, xyz, rgb, K = build_model(
         names, size, extrinsic, intrinsic, depth, conf, colors,
-        args.conf_thres, args.max_points, args.shared_camera, np.random.default_rng(args.seed),
+        args.conf_thres, args.conf_percentile, args.max_points, args.shared_camera, np.random.default_rng(args.seed),
     )
 
     sparse_dir = os.path.join(args.out_dir, "sparse", "0")
