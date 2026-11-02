@@ -94,7 +94,8 @@ class Config:
     data_factor: int = 4
     # Directory to save results
     result_dir: str = "results/garden"
-    # Every N images there is a test image
+    # Every N images there is a test image. <= 0: train on all images, and eval
+    # reports metrics on the training set instead (VGGT-Splat)
     test_every: int = 8
     # Random crop size for training  (experimental)
     patch_size: Optional[int] = None
@@ -1216,8 +1217,16 @@ class Runner:
         world_rank = self.world_rank
         world_size = self.world_size
 
+        # VGGT-Splat：验证集为空（test_every <= 0）时改评训练集，用于检查数据读取；
+        # 训练帧的位姿要和训练时一样经过 pose_perturb / pose_adjust
+        on_trainset = len(self.valset) == 0
+        if on_trainset and stage == "val":
+            stage = "train"
         valloader = torch.utils.data.DataLoader(
-            self.valset, batch_size=1, shuffle=False, num_workers=1
+            self.trainset if on_trainset else self.valset,
+            batch_size=1,
+            shuffle=False,
+            num_workers=1,
         )
         ellipse_time = 0
         metrics = defaultdict(list)
@@ -1227,6 +1236,13 @@ class Runner:
             pixels = data["image"].to(device) / 255.0
             masks = data["mask"].to(device) if "mask" in data else None
             height, width = pixels.shape[1:3]
+            if on_trainset:
+                image_ids = data["image_id"].to(device)
+                with torch.no_grad():
+                    if cfg.pose_noise:
+                        camtoworlds = self.pose_perturb(camtoworlds, image_ids)
+                    if cfg.pose_opt:
+                        camtoworlds = self.pose_adjust(camtoworlds, image_ids)
 
             # Exposure metadata is available for any image with EXIF data (train or val)
             exposure = data["exposure"].to(device) if "exposure" in data else None

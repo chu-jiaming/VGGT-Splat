@@ -456,7 +456,11 @@ class Dataset:
         self.patch_size = patch_size
         self.load_depths = load_depths
         indices = np.arange(len(self.parser.image_names))
-        if split == "train":
+        if self.parser.test_every <= 0:
+            # VGGT-Splat：data_dir 里只有训练帧（测试帧在 splits/test.txt，单独评测），
+            # 全部帧都训练，验证集为空；原逻辑下 index 0 总会被拿去验证
+            self.indices = indices if split == "train" else indices[:0]
+        elif split == "train":
             self.indices = indices[indices % self.parser.test_every != 0]
         else:
             self.indices = indices[indices % self.parser.test_every == 0]
