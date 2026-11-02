@@ -1334,13 +1334,19 @@ class Runner:
         cfg = self.cfg
         device = self.device
 
-        camtoworlds_all = self.parser.camtoworlds[5:-5]
+        # VGGT-Splat：少帧时（N=8，或 COLMAP 只注册了几帧）[5:-5] 会切空，不再掐头去尾
+        camtoworlds_all = self.parser.camtoworlds
+        if len(camtoworlds_all) >= 14:
+            camtoworlds_all = camtoworlds_all[5:-5]
         if cfg.render_traj_path == "raw":
             # Use captured poses as-is
             camtoworlds_all = camtoworlds_all[:, :3, :]  # [N, 3, 4]
         elif cfg.render_traj_path == "interp":
+            # VGGT-Splat：原版每段只插 1 个位姿，16 帧只出 5 帧视频；按约 150 帧（30 fps 5 s）定每段插几个，
+            # 帧多时仍是 1
+            n_interp = max(1, round(150 / (len(camtoworlds_all) - 1)))
             camtoworlds_all = generate_interpolated_path(
-                camtoworlds_all, 1
+                camtoworlds_all, n_interp
             )  # [N, 3, 4]
         elif cfg.render_traj_path == "ellipse":
             height = camtoworlds_all[:, 2, 3].mean()
