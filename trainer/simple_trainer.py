@@ -53,6 +53,7 @@ from torchmetrics.image import PeakSignalNoiseRatio, StructuralSimilarityIndexMe
 from torchmetrics.image.lpip import LearnedPerceptualImagePatchSimilarity
 from typing_extensions import Literal, assert_never
 from utils import AppearanceOptModule, CameraOptModule, knn, rgb_to_sh, set_random_seed
+from depth_loss import confidence_mask, dense_depth_loss
 
 from gsplat import export_splats
 from gsplat.compression import PngCompression
@@ -259,6 +260,23 @@ class Config:
     depth_loss: bool = False
     # Weight for depth loss
     depth_lambda: float = 1e-2
+
+    # VGGT-Splat: dense depth prior from VGGT (vggt_pred.npz written by
+    # scripts/vggt_to_colmap.py), Pearson loss on inverse depth (depth_loss.py).
+    # Unlike depth_loss above (sparse SfM points, same scale assumed), this is
+    # scale-invariant and dense.
+    dense_depth: bool = False
+    # Weight of the dense depth loss
+    dense_depth_lambda: float = 0.05
+    # Step to start applying it
+    dense_depth_start: int = 0
+    # Prior file; default <data_dir>/vggt_pred.npz
+    dense_depth_path: Optional[str] = None
+    # Keep prior pixels whose confidence is strictly above this percentile
+    # (over all frames, as vggt_to_colmap.py --conf_percentile); None keeps all
+    dense_depth_conf_percentile: Optional[float] = 50.0
+    # Only pixels whose rendered accumulated opacity exceeds this
+    dense_depth_alpha_thres: float = 0.5
 
     # Dump information to tensorboard every this steps
     tb_every: int = 100
@@ -480,6 +498,8 @@ class Runner:
             raise ValueError(
                 f"PPISP post-processing requires batch_size=1, got batch_size={cfg.batch_size}"
             )
+        if cfg.dense_depth:
+            self._load_dense_depth_prior()
         if cfg.post_processing is not None and world_size > 1:
             raise ValueError(
                 f"Post-processing ({cfg.post_processing}) requires single-GPU training, "
@@ -658,6 +678,36 @@ class Runner:
 
         self._gaussians_frozen = True
         print("[Distillation] Gaussian parameters frozen")
+
+    def _load_dense_depth_prior(self) -> None:
+        """VGGT-Splat: per-frame VGGT depth + confidence mask, ordered like the
+        parser (looked up by image name), kept on the device."""
+        cfg = self.cfg
+        path = cfg.dense_depth_path or os.path.join(cfg.data_dir, "vggt_pred.npz")
+        pred = np.load(path)
+        if int(pred["crop_start_y"]) != 0:
+            # Portrait frames are center-cropped by VGGT; the prior would cover
+            # only part of the image. Not supported (all scenes are landscape).
+            raise ValueError(f"{path}: VGGT input was cropped (crop_start_y > 0)")
+        name_to_idx = {str(n): i for i, n in enumerate(pred["names"])}
+        missing = [n for n in self.parser.image_names if n not in name_to_idx]
+        if missing:
+            raise ValueError(f"{path} has no prior for {len(missing)} frames, e.g. {missing[:3]}")
+        order = [name_to_idx[n] for n in self.parser.image_names]
+        depth = torch.from_numpy(pred["depth"][order]).float()  # [N, h, w]
+        conf = torch.from_numpy(pred["conf"][order]).float()
+        mask = confidence_mask(conf, depth, cfg.dense_depth_conf_percentile)
+        self.prior_depth = depth.to(self.device)
+        self.prior_mask = mask.to(self.device)
+        # dataset item -> parser index (identity with --test_every 0)
+        self.trainset_parser_idx = torch.as_tensor(
+            np.asarray(self.trainset.indices), device=self.device
+        )
+        print(
+            f"[dense_depth] {path}: {tuple(depth.shape)}, "
+            f"{mask.float().mean().item() * 100:.1f}% prior pixels kept, "
+            f"lambda={cfg.dense_depth_lambda}, start={cfg.dense_depth_start}"
+        )
 
     def rasterize_splats(
         self,
@@ -934,7 +984,7 @@ class Runner:
                 near_plane=cfg.near_plane,
                 far_plane=cfg.far_plane,
                 image_ids=image_ids,
-                render_mode="RGB+ED" if cfg.depth_loss else "RGB",
+                render_mode="RGB+ED" if (cfg.depth_loss or cfg.dense_depth) else "RGB",
                 masks=masks,
                 frame_idcs=image_ids,
                 camera_idcs=data["camera_idx"].to(device),
@@ -996,6 +1046,17 @@ class Runner:
                     depths, depths_gt, scene_scale=self.scene_scale
                 )
                 loss += depthloss * cfg.depth_lambda
+            dense_depthloss = None
+            if cfg.dense_depth and step >= cfg.dense_depth_start:
+                prior_idx = self.trainset_parser_idx[image_ids]
+                dense_depthloss = dense_depth_loss(
+                    depths,
+                    alphas,
+                    self.prior_depth[prior_idx],
+                    self.prior_mask[prior_idx],
+                    alpha_thres=cfg.dense_depth_alpha_thres,
+                )
+                loss += dense_depthloss * cfg.dense_depth_lambda
             if cfg.post_processing == "bilateral_grid":
                 post_processing_reg_loss = 10 * total_variation_loss(
                     self.post_processing_module.grids
@@ -1018,6 +1079,8 @@ class Runner:
             desc = f"loss={loss.item():.3f}| sh degree={sh_degree_to_use}| "
             if cfg.depth_loss:
                 desc += f"depth loss={depthloss.item():.6f}| "
+            if dense_depthloss is not None:
+                desc += f"dense depth={dense_depthloss.item():.4f}| "
             if cfg.pose_opt and cfg.pose_noise:
                 # monitor the pose error if we inject noise
                 pose_err = F.l1_loss(camtoworlds_gt, camtoworlds)
@@ -1042,6 +1105,10 @@ class Runner:
                 self.writer.add_scalar("train/mem", mem, step)
                 if cfg.depth_loss:
                     self.writer.add_scalar("train/depthloss", depthloss.item(), step)
+                if dense_depthloss is not None:
+                    self.writer.add_scalar(
+                        "train/dense_depthloss", dense_depthloss.item(), step
+                    )
                 if cfg.post_processing is not None:
                     self.writer.add_scalar(
                         "train/post_processing_reg_loss",
