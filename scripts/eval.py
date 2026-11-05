@@ -270,6 +270,20 @@ def to_uint8(x):
 
 # ---------- 主流程 ----------
 
+def write_failure(out_path, args, cfg, ckpt_path, n_test, reason):
+    """对齐做不了时也写 JSON（status=failed，n_registered=0），run_all.sh 照常记一行 CSV。"""
+    result = {
+        "status": "failed", "reason": reason,
+        "ckpt": os.path.abspath(ckpt_path), "data_dir": cfg["data_dir"],
+        "joint_dir": os.path.abspath(args.joint_dir), "test_list": os.path.abspath(args.test_list),
+        "n_test": n_test, "n_registered": 0,
+        "mean": {st: {k: None for k in ("psnr", "ssim", "lpips")} for st in ("before", "after")},
+        "frames": [],
+    }
+    with open(out_path, "w") as f:
+        json.dump(result, f, indent=2, ensure_ascii=False)
+    print(f"评测失败：{reason}\n写入 {out_path}")
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--result_dir", required=True, help="训练的 result_dir（含 cfg.yml、ckpts/）")
@@ -305,8 +319,13 @@ def main():
     leaked = sorted(set(test_names) & set(target))
     if leaked:
         print(f"注意：{len(leaked)} 个测试帧也在训练集里（自检模式才应如此），它们也参与了 Sim(3) 对齐")
-    joint = load_joint(args.joint_dir, cfg["data_factor"])
-    S, s, align_info = align_sim3(joint, target, target_scale)
+    try:
+        joint = load_joint(args.joint_dir, cfg["data_factor"])
+        S, s, align_info = align_sim3(joint, target, target_scale)
+    except (AssertionError, ValueError, FileNotFoundError) as e:
+        # 联合运行没有模型 / 共同训练帧 < 3（N=8 的 COLMAP 常见）：记为失败，不中断批处理
+        write_failure(out_path, args, cfg, ckpt_path, len(test_names), f"{type(e).__name__}: {e}")
+        return
     print(f"Sim(3)：共同帧 {align_info['n_common']}，尺度 {s:.4f}；"
           f"中心误差/轨迹尺度 中位 {align_info['center_err_rel_median']:.4f} 最大 {align_info['center_err_rel_max']:.4f}；"
           f"旋转误差 中位 {align_info['rot_err_deg_median']:.3f}° 最大 {align_info['rot_err_deg_max']:.3f}°")
@@ -383,6 +402,7 @@ def main():
         "n_registered": len(reg),
         "mean": mean,
         "time_s": time.time() - t0,
+        "status": "ok",
         "frames": frames,
     }
     with open(out_path, "w") as f:
