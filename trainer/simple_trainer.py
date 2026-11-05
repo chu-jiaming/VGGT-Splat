@@ -147,6 +147,8 @@ class Config:
     # instead decay lr to 1% by 7k and reset opacity at 6k with 1k steps left.
     # Not scaled by steps_scaler.
     stop_step: int = 0
+    # VGGT-Splat: random seed (was hardcoded 42); vary it to measure run-to-run noise.
+    seed: int = 42
     # Decode the training images once before training and keep them in host
     # memory, instead of decoding one image per step (COLMAP data only). Costs
     # the decoded training set in host memory on every rank.
@@ -413,7 +415,7 @@ class Runner:
     def __init__(
         self, local_rank: int, world_rank, world_size: int, cfg: Config
     ) -> None:
-        set_random_seed(42 + local_rank)
+        set_random_seed(cfg.seed + local_rank)
 
         self.cfg = cfg
         self.world_rank = world_rank

@@ -49,7 +49,11 @@ def load_rows(results_dir):
     last = {}
     for path in sorted(glob.glob(os.path.join(results_dir, "*.csv"))):
         with open(path) as f:
-            for r in csv.DictReader(f):
+            rd = csv.DictReader(f)
+            # 只读 append_result.py 写的逐场景表（results/ 下还有 depth_diag / coverage / seeds 等 CSV）
+            if not {"scene", "status", "finished_at"} <= set(rd.fieldnames or []):
+                continue
+            for r in rd:
                 last[(r["scene"], r["method"], r.get("depth_lambda", ""), r["n"])] = r
     return list(last.values())
 
