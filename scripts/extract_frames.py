@@ -94,7 +94,8 @@ def write_list(path, names):
 
 def process(scene_dir, args):
     extract(scene_dir, args.fps)
-    names = sorted(os.path.basename(p) for p in glob.glob(os.path.join(scene_dir, "frames", "*.jpg")))
+    # 不区分大小写：公开场景（garden）的 frames/ 软链接到原图目录，扩展名是 .JPG
+    names = sorted(n for n in os.listdir(os.path.join(scene_dir, "frames")) if n.lower().endswith(".jpg"))
     score = np.array([blur_score(os.path.join(scene_dir, "frames", n)) for n in names])
     ref = local_median(score, args.window)
     ratio = score / ref
