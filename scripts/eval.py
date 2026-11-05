@@ -5,7 +5,9 @@
    测试帧不泄露进高斯
 2. 对齐目标是训练坐标系里 pose opt 之后的训练帧位姿：Parser(normalize) 的 c2w 再乘 ckpt["pose_adjust"]
    （simple_trainer 的 --ckpt 评测分支不加载 pose_adjust，所以这里不复用 runner.eval）
-3. 按帧名配对共同训练帧，用相机中心做 Umeyama Sim(3)（联合坐标系 → 训练坐标系），一个变换作用于全部测试帧；
+3. 按帧名配对共同训练帧求 Sim(3)（联合坐标系 → 训练坐标系），一个变换作用于全部测试帧：
+   旋转由相机朝向求（旋转平均），尺度和平移由相机中心求（--align orient，默认）。只用中心做 Umeyama
+   （--align center，11-05 之前）在中心近似共线时旋转不可观测（lawn N=8 错约 5°）；
    内参（--intrinsics）：默认 train，测试帧用训练运行内参的逐元素中位数（所有帧来自同一台相机；
    VGGT 每帧焦距 ±2% 是估计噪声，联合运行会重估焦距，6 自由度位姿优化补不回缩放）。
    joint_ratio：联合运行内参 × 共同训练帧“训练焦距 / 联合焦距”的中位数；joint：联合运行内参原样
@@ -165,14 +167,56 @@ def rot_angle_deg(R):
     return float(np.degrees(np.arccos(np.clip((np.trace(R) - 1) / 2, -1, 1))))
 
 
-def align_sim3(joint, target, target_scale):
-    """联合坐标系 → 训练坐标系的 Sim(3)，用共同训练帧的相机中心拟合。返回 (4x4 矩阵 S, s, 诊断)。"""
+def project_so3(M):
+    """离 M 最近的旋转矩阵（Frobenius 范数下），行列式强制为 +1。"""
+    U, _, Vt = np.linalg.svd(M)
+    D = np.diag([1.0, 1.0, np.sign(np.linalg.det(U @ Vt))])
+    return U @ D @ Vt
+
+
+def orient_center_sim3(R_src, C_src, R_dst, C_dst):
+    """旋转由相机朝向求、尺度和平移由相机中心求的 Sim(3)：dst ≈ s R src + t。
+
+    R_src / R_dst: (N, 3, 3) c2w 旋转；C_src / C_dst: (N, 3) 相机中心。
+    1. R = proj_SO3(Σ R_dst R_srcᵀ)：使 R R_src ≈ R_dst 的弦距离最小（旋转平均）。一帧就含完整的朝向信息，
+       中心共线时也确定
+    2. R 固定后，s、t 对中心是线性最小二乘：去质心，s = Σ xdᵀ R xs / Σ |xs|²，t = μd − s R μs
+    """
+    R = project_so3(np.einsum("nij,nkj->ik", R_dst, R_src))
+    mu_s, mu_d = C_src.mean(0), C_dst.mean(0)
+    xs, xd = C_src - mu_s, C_dst - mu_d
+    s = float(np.sum(xd * (xs @ R.T)) / np.sum(xs * xs))
+    t = mu_d - s * R @ mu_s
+    return s, R, t
+
+
+def align_sim3(joint, target, target_scale, method="orient"):
+    """联合坐标系 → 训练坐标系的 Sim(3)，用共同训练帧拟合。返回 (4x4 矩阵 S, s, 诊断)。
+
+    method="orient"（默认，11-05 起）：旋转由相机朝向求、尺度平移由中心求（orient_center_sim3）。
+    method="center"：只用相机中心做 Umeyama（11-05 之前的做法）。中心近似共线时（沿直线走着拍，
+    lawn / room）绕那条线的旋转不可观测，SVD 任选一个角度：lawn N=8 错了约 5°，lawn colmap_16 错了 125°。
+    两种方法求出的旋转之差记在 rot_gap_center_vs_orient_deg，用来发现这种情况。
+    """
     common = sorted(set(joint) & set(target))
     if len(common) < 3:
         raise ValueError(f"共同训练帧只有 {len(common)} 帧，无法做 Sim(3) 对齐")
     C_src = np.stack([joint[n][0][:3, 3] for n in common])
     C_dst = np.stack([target[n][:3, 3] for n in common])
-    s, R, t = umeyama(C_src, C_dst)
+    R_src = np.stack([joint[n][0][:3, :3] for n in common])
+    R_dst = np.stack([target[n][:3, :3] for n in common])
+    s_c, R_c, t_c = umeyama(C_src, C_dst)
+    s_o, R_o, t_o = orient_center_sim3(R_src, C_src, R_dst, C_dst)
+    if method == "orient":
+        s, R, t = s_o, R_o, t_o
+    elif method == "center":
+        s, R, t = s_c, R_c, t_c
+    else:
+        raise ValueError(method)
+    if s <= 0:
+        raise ValueError(f"Sim(3) 尺度 {s:.4g} ≤ 0，对齐失败")
+    centers = C_dst - C_dst.mean(0)
+    sv = np.linalg.svd(centers, compute_uv=False)
     S = np.eye(4)
     S[:3, :3] = s * R
     S[:3, 3] = t
@@ -183,9 +227,13 @@ def align_sim3(joint, target, target_scale):
         err_c.append(np.linalg.norm(c2w[:3, 3] - target[n][:3, 3]) / target_scale)
         err_r.append(rot_angle_deg(c2w[:3, :3].T @ target[n][:3, :3]))
     info = {
+        "method": method,
         "n_common": len(common),
         "common": common,
         "scale": float(s),
+        # 中心排布：第二 / 第一奇异值比接近 0 = 近似共线（只用中心时旋转不可观测）
+        "center_sv_ratio": float(sv[1] / sv[0]) if sv[0] > 0 else 0.0,
+        "rot_gap_center_vs_orient_deg": rot_angle_deg(R_c.T @ R_o),
         "target_traj_scale": target_scale,
         "center_err_rel_median": float(np.median(err_c)),
         "center_err_rel_max": float(np.max(err_c)),
@@ -295,6 +343,8 @@ def main():
     ap.add_argument("--tto_steps", type=int, default=500, help="每帧测试时位姿优化步数（所有方法统一）")
     ap.add_argument("--tto_lr", type=float, default=1e-3)
     ap.add_argument("--tto_lr_final_ratio", type=float, default=0.01, help="学习率指数衰减到初值的比例")
+    ap.add_argument("--align", choices=["orient", "center"], default="orient",
+                    help="Sim(3) 旋转来源：相机朝向（默认）/ 只用相机中心的 Umeyama（旧做法，对照用）")
     ap.add_argument("--intrinsics", choices=["train", "joint_ratio", "joint"], default="train",
                     help="测试帧内参来源：训练运行中位数 / 联合运行 × 焦距比 / 联合运行原样")
     ap.add_argument("--save_renders", action="store_true", help="保存 GT | 优化前 | 优化后 拼图到 <out 同名目录>/")
@@ -321,12 +371,14 @@ def main():
         print(f"注意：{len(leaked)} 个测试帧也在训练集里（自检模式才应如此），它们也参与了 Sim(3) 对齐")
     try:
         joint = load_joint(args.joint_dir, cfg["data_factor"])
-        S, s, align_info = align_sim3(joint, target, target_scale)
+        S, s, align_info = align_sim3(joint, target, target_scale, method=args.align)
     except (AssertionError, ValueError, FileNotFoundError) as e:
         # 联合运行没有模型 / 共同训练帧 < 3（N=8 的 COLMAP 常见）：记为失败，不中断批处理
         write_failure(out_path, args, cfg, ckpt_path, len(test_names), f"{type(e).__name__}: {e}")
         return
-    print(f"Sim(3)：共同帧 {align_info['n_common']}，尺度 {s:.4f}；"
+    print(f"Sim(3)（{args.align}）：共同帧 {align_info['n_common']}，尺度 {s:.4f}；"
+          f"中心奇异值比 {align_info['center_sv_ratio']:.3f}，只用中心与用朝向的旋转差 "
+          f"{align_info['rot_gap_center_vs_orient_deg']:.2f}°；"
           f"中心误差/轨迹尺度 中位 {align_info['center_err_rel_median']:.4f} 最大 {align_info['center_err_rel_max']:.4f}；"
           f"旋转误差 中位 {align_info['rot_err_deg_median']:.3f}° 最大 {align_info['rot_err_deg_max']:.3f}°")
     f_ratio, f_info = focal_ratio(joint, target_Ks)
