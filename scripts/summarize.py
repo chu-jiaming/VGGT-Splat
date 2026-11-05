@@ -27,7 +27,7 @@ import os
 
 import numpy as np
 
-SCENES = ["desk", "lawn", "room", "garden"]
+SCENES = ["desk", "lawn", "room", "garden", "bicycle", "counter"]
 NS = ["8", "16", "32", "all"]
 METRICS = [("psnr", "PSNR ↑", "{:.2f}"), ("ssim", "SSIM ↑", "{:.3f}"), ("lpips", "LPIPS ↓", "{:.3f}")]
 # 分类色（dataviz 参考调色板前 3 个槽位，已过 validate_palette.js）+ 不同 marker 作为第二编码

@@ -30,7 +30,7 @@ from eval import Parser, load_cfg, load_gaussians, load_target, latest_ckpt, ras
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "trainer"))
 from depth_loss import confidence_mask  # noqa: E402
 
-SCENES = ["desk", "lawn", "room", "garden"]
+SCENES = ["desk", "lawn", "room", "garden", "bicycle", "counter"]
 NS = ["8", "16", "32", "all"]
 
 

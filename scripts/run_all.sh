@@ -32,7 +32,7 @@
 # 结果：results/<scene>.csv 每次运行一行（append_result.py）；失败也记一行，status=failed:<阶段>
 #
 # 可续跑：已有的位姿估计目录、联合运行目录、ckpt 直接复用；评测和 CSV 每次重做（CSV 会多一行，汇总时取最后一行）。
-# 分辨率：自拍场景 data_factor 2（960×540）；garden 的 frames/ 指向 images_4（1237×822），data_factor 1。
+# 分辨率：自拍场景 data_factor 2（960×540）；公开场景（garden / bicycle / counter）的 frames/ 是指向 images_4 的软链接，data_factor 1。
 set -uo pipefail
 
 REPO=$(cd "$(dirname "$0")/.." && pwd)
@@ -46,7 +46,8 @@ VGGT_ARGS=${VGGT_ARGS:---shared_camera --conf_percentile 50}
 export PATH=/root/work/.venv/bin:/usr/local/cuda/bin:$PATH CUDA_HOME=/usr/local/cuda TORCH_HOME=/root/work/torch
 export HF_HOME=/root/work/hf HF_HUB_DISABLE_XET=1 HF_ENDPOINT=https://hf-mirror.com
 
-factor_of() { case $1 in garden) echo 1 ;; *) echo 2 ;; esac; }
+# 公开场景（Mip-NeRF 360）的 frames/ 是指向已缩小的 images_4 的软链接，按原样用；实拍场景 1920×1080 缩一半
+factor_of() { if [[ -L $DATA/$1/frames ]]; then echo 1; else echo 2; fi; }
 
 has_model() { [[ -f $1/sparse/0/images.txt || -f $1/sparse/0/images.bin ]]; }
 

@@ -25,7 +25,7 @@ import torch
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from eval import Parser, imageio, load_cfg, load_gaussians, load_joint, load_target, rasterization, to_uint8  # noqa: E402
 
-SCENES = ["desk", "lawn", "room", "garden"]
+SCENES = ["desk", "lawn", "room", "garden", "bicycle", "counter"]
 NS = ["8", "16", "32", "all"]
 
 
