@@ -21,7 +21,7 @@ import os
 import time
 
 COLUMNS = [
-    "scene", "method", "n", "status", "matcher",
+    "scene", "method", "depth_lambda", "n", "status", "matcher",
     "train_input", "train_registered", "test_total", "test_registered",
     "psnr_before", "ssim_before", "lpips_before", "psnr_after", "ssim_after", "lpips_after",
     "train_psnr", "num_gs", "align_n_common", "align_center_err_rel", "align_rot_err_deg",
@@ -54,12 +54,14 @@ def main():
     ap.add_argument("--train_list", required=True)
     ap.add_argument("--status", required=True, help="ok，或 failed:<阶段>")
     ap.add_argument("--matcher", default="")
+    ap.add_argument("--depth_lambda", default="", help="vggt_depth 的深度损失权重，其他方法留空")
     args = ap.parse_args()
 
     with open(args.train_list) as f:
         train_input = sum(1 for ln in f if ln.strip())
     row = {k: "" for k in COLUMNS}
-    row.update(scene=args.scene, method=args.method, n=args.n, status=args.status, matcher=args.matcher,
+    row.update(scene=args.scene, method=args.method, depth_lambda=args.depth_lambda, n=args.n,
+               status=args.status, matcher=args.matcher,
                train_input=train_input, train_registered=count_registered(os.path.join(args.run_dir, "sparse/0")),
                finished_at=time.strftime("%F %T"))
 
@@ -92,8 +94,20 @@ def main():
                     row[f"{stage}_s"] = sec
 
     os.makedirs(os.path.dirname(os.path.abspath(args.csv)), exist_ok=True)
-    with open(args.csv, "a", newline="") as f:
+    with open(args.csv, "a+", newline="") as f:
         fcntl.flock(f, fcntl.LOCK_EX)
+        f.seek(0)
+        old = list(csv.DictReader(f))
+        f.seek(0)
+        header = f.readline().strip().split(",")
+        if old and header != COLUMNS:
+            # 表头变了（如 11-05 加 depth_lambda）：按列名把旧行搬到新表头，缺的列留空
+            f.seek(0)
+            f.truncate()
+            w = csv.DictWriter(f, fieldnames=COLUMNS)
+            w.writeheader()
+            for r in old:
+                w.writerow({k: r.get(k, "") for k in COLUMNS})
         f.seek(0, os.SEEK_END)
         w = csv.DictWriter(f, fieldnames=COLUMNS)
         if f.tell() == 0:
