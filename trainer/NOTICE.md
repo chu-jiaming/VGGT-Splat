@@ -32,4 +32,5 @@ commit `512d366b67073d77ca099ede742683c165dfc23b`，按 Apache License 2.0 使�
 | --- | --- |
 | `datasets/colmap.py` | `test_every <= 0` 时全部帧训练、验证集为空（原逻辑 index 0 总被拿去验证） |
 | `simple_trainer.py` | `render_traj` 位姿少于 14 个时不再掐头去尾 `[5:-5]`（7 帧时切空报错）；`interp` 轨迹按约 150 帧定每段插值数（原版每段 1 个，16 帧只出 5 帧视频） |
+| `simple_trainer.py` | 新增 `--stop_step`：训练循环跑到该步就停，学习率衰减、densify、opacity reset 仍按 `max_steps` 的调度（即 30k 训练的第 7k 步） |
 | `simple_trainer.py` | 验证集为空时 `eval()` 改评训练集（输出前缀 `train_`），渲染时训练帧位姿经过 `pose_perturb` / `pose_adjust`，和训练时一致 |

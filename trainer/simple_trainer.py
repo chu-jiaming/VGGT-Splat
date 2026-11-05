@@ -140,6 +140,12 @@ class Config:
 
     # Number of training steps
     max_steps: int = 30_000
+    # VGGT-Splat: stop the loop after this many steps (0 = run to max_steps) while
+    # keeping every schedule (lr decay, densification, opacity reset) tied to
+    # max_steps, i.e. the step-7k checkpoint of a 30k run. --max_steps 7000 would
+    # instead decay lr to 1% by 7k and reset opacity at 6k with 1k steps left.
+    # Not scaled by steps_scaler.
+    stop_step: int = 0
     # Decode the training images once before training and keep them in host
     # memory, instead of decoding one image per step (COLMAP data only). Costs
     # the decoded training set in host memory on every rank.
@@ -866,7 +872,8 @@ class Runner:
 
         # Training loop.
         global_tic = time.time()
-        pbar = tqdm.tqdm(range(init_step, max_steps))
+        end_step = min(cfg.stop_step, max_steps) if cfg.stop_step > 0 else max_steps
+        pbar = tqdm.tqdm(range(init_step, end_step))
         for step in pbar:
             if not cfg.disable_viewer:
                 while self.viewer.state == "paused":
