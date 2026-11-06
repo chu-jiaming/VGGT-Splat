@@ -97,6 +97,14 @@ def fmt(v, spec):
     return "—" if v is None else spec.format(v)
 
 
+def pose_seconds(r, rows):
+    """位姿估计耗时；vggt_depth 复用同场景同 N 的 vggt 位姿，取 vggt 那一行的。"""
+    if r["method"] == "vggt_depth" and not r.get("pose_s"):
+        src = next((x for x in rows if x["scene"] == r["scene"] and x["n"] == r["n"] and x["method"] == "vggt"), None)
+        return fnum(src.get("pose_s")) if src else None
+    return fnum(r.get("pose_s"))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--results", default="/root/autodl-tmp/results")
@@ -126,13 +134,16 @@ def main():
 
     long_rows, md = [], ["# 结果汇总", "",
                          f"指标为测试时位姿优化之后；“共同帧”= 同场景同 N 下所有可信运行都注册了的测试帧。"
-                         f"对齐可信阈值：中心误差 ≤ {args.center_thres:.0%}，旋转误差 ≤ {args.rot_thres}°。", ""]
+                         f"对齐可信阈值：中心误差 ≤ {args.center_thres:.0%}，旋转误差 ≤ {args.rot_thres}°。", "",
+                         "耗时为墙钟秒数（单张 RTX 4090）：位姿 = COLMAP 或 VGGT 估计训练帧位姿（含加载模型、读图），"
+                         "vggt_depth 复用 vggt 的位姿；训练 = 3DGS 7k 步，批处理时 2–3 个任务并行，只作参考。"
+                         "联合运行和评测只为测试协议服务，不计入方法成本。", ""]
     curves = {}  # (scene, label) → {n: {metric: v}}
     common_info = {}  # (scene, n) → (n_common, n_test)
     for scene in scenes:
         md += [f"## {scene}", "",
-               "| N | 方法 | 状态 | 注册/测试帧 | PSNR | SSIM | LPIPS | 共同帧 | PSNR | SSIM | LPIPS |",
-               "|---|---|---|---|---|---|---|---|---|---|---|"]
+               "| N | 方法 | 状态 | 注册/测试帧 | PSNR | SSIM | LPIPS | 共同帧 | PSNR | SSIM | LPIPS | 位姿 s | 训练 s |",
+               "|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
         for n in NS:
             group = [r for r in rows if r["scene"] == scene and r["n"] == n and r["main"]]
             if not group:
@@ -151,7 +162,8 @@ def main():
                 md.append(f"| {n} | {r['label']} | {status} | {r['test_registered'] or 0}/{r['test_total'] or n_test} | "
                           + " | ".join(fmt(own[k], s) for k, _, s in METRICS)
                           + f" | {len(common) if r['ok'] else '—'} | "
-                          + " | ".join(fmt(com[k], s) for k, _, s in METRICS) + " |")
+                          + " | ".join(fmt(com[k], s) for k, _, s in METRICS)
+                          + f" | {fmt(pose_seconds(r, rows), '{:.0f}')} | {fmt(fnum(r.get('train_s')), '{:.0f}')} |")
                 long_rows.append({
                     "scene": scene, "n": n, "method": r["method"], "depth_lambda": r["depth_lambda"],
                     "usable": int(r["ok"]), "note": r["why"],
@@ -160,8 +172,26 @@ def main():
                     "n_common": len(common) if r["ok"] else "",
                     **{f"{k}_common": com[k] for k, _, _ in METRICS},
                     "align_center_err_rel": r["align_center_err_rel"], "align_rot_err_deg": r["align_rot_err_deg"],
+                    "pose_s": pose_seconds(r, rows), "train_s": r.get("train_s"),
+                    "joint_s": r.get("joint_s"), "eval_s": r.get("eval_s"),
                 })
         md.append("")
+
+    # 位姿估计耗时：COLMAP vs VGGT（含失败的 COLMAP，它也花了时间）
+    md += ["## 位姿估计耗时", "",
+           "单位秒，COLMAP 后括号为注册的训练帧 / 输入帧；— 表示没有记录"
+           "（desk N=16 是 D7 在 run_all.sh 之前手动跑的，用的是 30k 训练中途的 7k ckpt，没有可比耗时）。", "",
+           "| 场景 | " + " | ".join(f"N={n} COLMAP | N={n} VGGT" for n in NS) + " |",
+           "|---|" + "---|---|" * len(NS)]
+    for scene in scenes:
+        cells = []
+        for n in NS:
+            c = next((r for r in rows if r["scene"] == scene and r["n"] == n and r["method"] == "colmap"), None)
+            v = next((r for r in rows if r["scene"] == scene and r["n"] == n and r["method"] == "vggt"), None)
+            cs = "—" if c is None else f"{fmt(fnum(c.get('pose_s')), '{:.0f}')}（{c['train_registered'] or 0}/{c['train_input']}）"
+            cells += [cs, "—" if v is None else fmt(fnum(v.get("pose_s")), "{:.0f}")]
+        md.append(f"| {scene} | " + " | ".join(cells) + " |")
+    md.append("")
 
     # 失败 / 可疑清单（含不进主表的权重）
     bad = [r for r in rows if not r["ok"]]
