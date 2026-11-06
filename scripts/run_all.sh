@@ -21,6 +21,7 @@
 #   STOP_STEP (7000)  训练按 30k 调度跑到这一步停（trainer --stop_step，11-05 定）
 #   VGGT_ARGS (--shared_camera --conf_percentile 50)  训练帧和联合运行都用
 #   DATA / RUNS / RESULTS (/root/autodl-tmp/{data,runs,results})
+#   VENV (/root/work/.venv)  虚拟环境，其 bin/ 放在 PATH 最前；HF_HOME / TORCH_HOME / HF_ENDPOINT 同理可覆盖
 #
 # 每次运行（runs/<scene>/<method>_<N>/）：
 #   sparse/0, images/      训练帧位姿（colmap: run_colmap.sh exhaustive；vggt: vggt_to_colmap.py）
@@ -43,8 +44,8 @@ STOP_STEP=${STOP_STEP:-7000}
 POSE_LOCK=${POSE_LOCK:-/tmp/vggt_splat_pose.lock}
 # 与 desk vggt_16（11-02）一致：一台相机；默认 conf_thres 5 在 desk / lawn 上一个点都不剩
 VGGT_ARGS=${VGGT_ARGS:---shared_camera --conf_percentile 50}
-export PATH=/root/work/.venv/bin:/usr/local/cuda/bin:$PATH CUDA_HOME=/usr/local/cuda TORCH_HOME=/root/work/torch
-export HF_HOME=/root/work/hf HF_HUB_DISABLE_XET=1 HF_ENDPOINT=https://hf-mirror.com
+export PATH=${VENV:-/root/work/.venv}/bin:/usr/local/cuda/bin:$PATH CUDA_HOME=/usr/local/cuda TORCH_HOME=${TORCH_HOME:-/root/work/torch}
+export HF_HOME=${HF_HOME:-/root/work/hf} HF_HUB_DISABLE_XET=1 HF_ENDPOINT=${HF_ENDPOINT:-https://hf-mirror.com}
 
 # 公开场景（Mip-NeRF 360）的 frames/ 是指向已缩小的 images_4 的软链接，按原样用；实拍场景 1920×1080 缩一半
 factor_of() { if [[ -L $DATA/$1/frames ]]; then echo 1; else echo 2; fi; }

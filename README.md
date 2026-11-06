@@ -105,9 +105,10 @@ data/<scene>/splits/              test.txt, train_{8,16,32,all}.txt (from extrac
 
 ### Run
 
-`scripts/run_all.sh` runs pose estimation → joint run → training → evaluation for every scene × method × N and appends one row per run to `results/<scene>.csv`. It resumes from existing outputs. Paths and the Python environment are set at the top of the script (`DATA`, `RUNS`, `RESULTS`, `PATH`); adjust them for your machine.
+`scripts/run_all.sh` runs pose estimation → joint run → training → evaluation for every scene × method × N and appends one row per run to `results/<scene>.csv`. It resumes from existing outputs. Paths come from environment variables: `DATA`, `RUNS`, `RESULTS`, `VENV` (the virtual environment, its `bin/` goes first on `PATH`), `HF_HOME` / `TORCH_HOME` (weight caches) and `HF_ENDPOINT` (defaults to `https://hf-mirror.com`; set `HF_ENDPOINT=https://huggingface.co` outside mainland China). `SCENES`, `METHODS` and `NS` select a subset, e.g. `SCENES=garden NS=8` for a ~10 minute check.
 
 ```bash
+export VENV=$PWD/.venv DATA=$PWD/data RUNS=$PWD/runs RESULTS=$PWD/results
 SCENES="desk lawn room garden bicycle counter" METHODS="colmap vggt" scripts/run_all.sh
 SCENES="desk lawn room garden bicycle counter" METHODS=vggt_depth DEPTH_LAMBDAS=0.2 scripts/run_all.sh
 python scripts/summarize.py --results results --runs runs       # tables, curves, failure list → results/summary/
@@ -130,6 +131,7 @@ One run (pose estimation, joint run, 7k-step training, evaluation) takes about 5
 
 - One capture per scene and, for the main grid, one seed; seed repeats cover only a subset of configurations.
 - Training stops at 7k steps for every run. On desk N = 16, the 30k checkpoint of the same run was slightly worse on test frames (extra steps overfit the training views) with the same method ranking; other configurations were not checked.
+- COLMAP is not deterministic with few frames. Reproducing garden N = 8 in a fresh environment gave VGGT 15.67 dB (15.64 here), but COLMAP registered 5/8 training frames instead of 6/8 and reached 13.35 dB instead of 14.27; five further COLMAP runs on the same frames all registered 6/8.
 - The coverage split uses each model's own geometry to decide what is seen, so it is an approximation.
 - Test cameras are obtained from a separate joint run and refined with the scene frozen; this is the standard protocol for pose-free methods but still differs from evaluating with ground-truth test poses.
 

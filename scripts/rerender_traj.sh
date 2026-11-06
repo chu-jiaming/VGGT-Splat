@@ -15,7 +15,7 @@ REPO=$(cd "$(dirname "$0")/.." && pwd)
 RUNS=${RUNS:-/root/autodl-tmp/runs}
 TRAJ_FRAMES=${TRAJ_FRAMES:-450}
 STEP=${STEP:-6999}
-export PATH=/root/work/.venv/bin:/usr/local/cuda/bin:$PATH CUDA_HOME=/usr/local/cuda TORCH_HOME=/root/work/torch
+export PATH=${VENV:-/root/work/.venv}/bin:/usr/local/cuda/bin:$PATH CUDA_HOME=/usr/local/cuda TORCH_HOME=${TORCH_HOME:-/root/work/torch}
 
 [[ $# -gt 0 ]] || { sed -n 2,5p "$0"; exit 1; }
 for run in "$@"; do

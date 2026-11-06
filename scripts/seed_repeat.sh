@@ -16,7 +16,7 @@ RUNS=${RUNS:-/root/autodl-tmp/runs}
 RESULTS=${RESULTS:-/root/autodl-tmp/results}
 STOP_STEP=${STOP_STEP:-7000}
 CSV=$RESULTS/seeds.csv
-export PATH=/root/work/.venv/bin:/usr/local/cuda/bin:$PATH CUDA_HOME=/usr/local/cuda TORCH_HOME=/root/work/torch
+export PATH=${VENV:-/root/work/.venv}/bin:/usr/local/cuda/bin:$PATH CUDA_HOME=/usr/local/cuda TORCH_HOME=${TORCH_HOME:-/root/work/torch}
 
 factor_of() { if [[ -L $DATA/$1/frames ]]; then echo 1; else echo 2; fi; }
 
