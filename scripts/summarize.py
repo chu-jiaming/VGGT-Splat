@@ -9,7 +9,8 @@
     - 未注册的测试帧不补值；方法之间在“共同注册帧”上比：同一场景、同一 N 下，
       所有 status=ok 且对齐可信的运行都注册了的测试帧
     - 对齐可信：align_center_err_rel（中位）≤ --center_thres 且 align_rot_err_deg（中位）≤ --rot_thres；
-      不可信的运行单独列出，不进入共同帧比较和曲线
+      不可信的运行单独列出，不进入共同帧比较和曲线。中心误差默认 10%：成功运行最大 7.4%（room vggt_8，
+      8 帧 VGGT 的正常精度），两次 COLMAP 重建对不上的是 13% / 76%，10% 落在两者之间的空档
 
 输出（--out，默认 <results>/summary/）：
     summary.md    每个场景一张表（自己注册帧上的平均 + 共同注册帧上的平均）、失败与可疑清单、深度权重扫描
@@ -102,7 +103,7 @@ def main():
     ap.add_argument("--runs", default="/root/autodl-tmp/runs")
     ap.add_argument("--out", default=None)
     ap.add_argument("--depth_lambdas", default="0.2", help="进入主表和曲线的 vggt_depth 权重（逗号分隔）；其余只进权重扫描表")
-    ap.add_argument("--center_thres", type=float, default=0.05, help="对齐中心误差中位数上限（相对轨迹尺度）")
+    ap.add_argument("--center_thres", type=float, default=0.10, help="对齐中心误差中位数上限（相对轨迹尺度）")
     ap.add_argument("--rot_thres", type=float, default=5.0, help="对齐旋转误差中位数上限（度）")
     args = ap.parse_args()
     out = args.out or os.path.join(args.results, "summary")
