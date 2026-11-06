@@ -4,6 +4,10 @@ Casual phone video → [VGGT](https://github.com/facebookresearch/vggt) feed-for
 
 **Project page**: https://chu-jiaming.github.io/vggt-splat/
 
+![Mip-NeRF 360 garden, all frames: COLMAP + 3DGS (left) and VGGT + 3DGS (right) rendered along the same novel orbit](assets/garden_orbit.gif)
+
+*Garden, all frames, 7k steps: both models rendered along one shared novel orbit (26.3 vs. 21.8 dB test PSNR). Full-resolution videos are on the project page.*
+
 **Questions**
 
 1. **Frame budget**: how many frames does a casual capture need? Compare COLMAP + 3DGS and VGGT → 3DGS at 8 / 16 / 32 / all training frames.
