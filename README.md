@@ -121,6 +121,7 @@ python scripts/depth_diag.py --runs runs --out results/depth_diag.csv
 scripts/seed_repeat.sh job desk vggt_depth 32 1 0.2 && scripts/seed_repeat.sh summary
 python scripts/export_splats.py --runs runs --out results/export --list "garden/vggt_all garden/colmap_all"   # .splat + compressed .ply
 RUNS=runs scripts/rerender_traj.sh garden/vggt_all garden/colmap_all   # slower fly-through videos (450 frames) from existing checkpoints
+python scripts/render_orbit.py --runs runs --out results/orbit --scene garden --frames 600   # COLMAP and VGGT models along one shared novel orbit
 ```
 
 One run (pose estimation, joint run, 7k-step training, evaluation) takes about 5–10 minutes on an RTX 4090, and up to about 35 minutes for COLMAP with all frames.
