@@ -86,6 +86,8 @@ class Config:
     compression: Optional[Literal["png"]] = None
     # Render trajectory path: "interp", "ellipse", "spiral", or "raw" (use captured poses as-is)
     render_traj_path: str = "interp"
+    # VGGT-Splat: approximate frame count of the "interp" trajectory video (30 fps)
+    traj_frames: int = 150
 
     # Dataset backend: "colmap" or "ncore"
     data_type: str = "colmap"
@@ -1418,9 +1420,9 @@ class Runner:
             # Use captured poses as-is
             camtoworlds_all = camtoworlds_all[:, :3, :]  # [N, 3, 4]
         elif cfg.render_traj_path == "interp":
-            # VGGT-Splat：原版每段只插 1 个位姿，16 帧只出 5 帧视频；按约 150 帧（30 fps 5 s）定每段插几个，
-            # 帧多时仍是 1
-            n_interp = max(1, round(150 / (len(camtoworlds_all) - 1)))
+            # VGGT-Splat：原版每段只插 1 个位姿，16 帧只出 5 帧视频；按约 --traj_frames 帧（默认 150，30 fps 5 s）
+            # 定每段插几个。帧多时默认仍是 1，相机逐个跳；项目页视频用 --traj_frames 450 放慢
+            n_interp = max(1, round(cfg.traj_frames / (len(camtoworlds_all) - 1)))
             camtoworlds_all = generate_interpolated_path(
                 camtoworlds_all, n_interp
             )  # [N, 3, 4]
