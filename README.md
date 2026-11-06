@@ -1,14 +1,18 @@
 # VGGT-Splat
 
+English | [简体中文](README.zh-CN.md)
+
 Casual phone video → [VGGT](https://github.com/facebookresearch/vggt) feed-forward poses, points and depth → 3D Gaussian Splatting, compared against the usual COLMAP → 3DGS pipeline.
 
 **Project page**: https://chu-jiaming.github.io/vggt-splat/ · **Release**: [v1.0.0](https://github.com/chu-jiaming/VGGT-Splat/releases/tag/v1.0.0) (trained models, self-captured data)
 
 **Status**: complete. All experiments, figures and the project page are final as of v1.0.0.
 
-![Mip-NeRF 360 garden, all frames: COLMAP + 3DGS (left) and VGGT + 3DGS (right) rendered along the same novel orbit](assets/garden_orbit.gif)
-
-*Garden, all frames, 7k steps: both models rendered along one shared novel orbit (26.3 vs. 21.8 dB test PSNR). Full-resolution videos are on the project page.*
+<p align="center">
+  <img src="assets/garden_orbit.gif" width="800" alt="Mip-NeRF 360 garden, all frames: COLMAP + 3DGS (left) and VGGT + 3DGS (right) rendered along the same novel orbit">
+  <br>
+  <em>Garden, all frames, 7k steps: both models rendered along one shared novel orbit (26.3 vs. 21.8 dB test PSNR). Full-resolution videos are on the project page.</em>
+</p>
 
 **Questions**
 
