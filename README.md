@@ -15,6 +15,11 @@ Casual phone video → [VGGT](https://github.com/facebookresearch/vggt) feed-for
 
 6 scenes (self-captured desk / lawn / room; Mip-NeRF 360 garden / bicycle / counter) × 4 frame budgets × 3 methods = 72 runs, plus seed repeats.
 
+## Conclusions
+
+1. **Frame budget.** Below about 16–32 frames, VGGT is the only one of the two front ends that reliably gives a reconstruction: COLMAP fails on 4 of 6 scenes at N = 8 and 3 of 6 at N = 16, while VGGT never fails. With a full capture of 110–180 frames, COLMAP is the better choice when quality matters, leading by 2.1–4.6 dB on five of six scenes; VGGT remains 3.5–13× faster at estimating poses, at that cost in quality.
+2. **VGGT depth prior.** It does not recover measurable novel-view quality: it pulls rendered depth towards VGGT's depth, but across seed repeats only two of the differences exceed noise (−0.68 dB on desk N = 32, +0.17 dB on lawn N = 8). With few frames the error sits in regions that no training view sees, and a depth loss on training views cannot reach them; more views, or priors that cover unseen regions, are what would help.
+
 ## Findings
 
 1. **Few frames: VGGT is reliable, COLMAP is not. Many frames: COLMAP is better. The crossover is around N = 16–32.**
