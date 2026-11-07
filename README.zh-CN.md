@@ -1,10 +1,16 @@
 # VGGT-Splat
 
-[English](README.md) | 简体中文
+[English](README.md) | 中文
 
-随手拍的手机视频 → [VGGT](https://github.com/facebookresearch/vggt) 前馈预测位姿、点云和深度 → 3D Gaussian Splatting，与常规的 COLMAP → 3DGS 流程对比。
+**随手拍的手机视频 → [VGGT](https://github.com/facebookresearch/vggt) 前馈预测位姿、点云和深度 → 3D Gaussian Splatting，与常规的 COLMAP → 3DGS 流程对比。**
 
-**项目主页**：https://chu-jiaming.github.io/vggt-splat/ · **Release**：[v1.0.0](https://github.com/chu-jiaming/VGGT-Splat/releases/tag/v1.0.0)（训练好的模型、自拍数据）
+[![Project Page](https://img.shields.io/badge/Project-Page-2ea44f?style=flat-square)](https://chu-jiaming.github.io/vggt-splat/)
+![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=flat-square&logo=python&logoColor=white)
+![PyTorch](https://img.shields.io/badge/PyTorch-2.9.1-EE4C2C?style=flat-square&logo=pytorch&logoColor=white)
+![gsplat](https://img.shields.io/badge/gsplat-512d366-6C63FF?style=flat-square)
+![License: MIT](https://img.shields.io/badge/License-MIT-lightgrey?style=flat-square)
+
+**项目主页**：https://chu-jiaming.github.io/vggt-splat/ · **Release**：[v1.0.0](https://github.com/chu-jiaming/VGGT-Splat/releases/tag/v1.0.0)（训练好的模型、自己拍摄的数据）
 
 <p align="center">
   <img src="assets/garden_orbit.gif" width="800" alt="Mip-NeRF 360 garden，全部帧：COLMAP + 3DGS（左）与 VGGT + 3DGS（右）沿同一条新视角环绕路径渲染">
@@ -14,10 +20,10 @@
 
 **研究问题**
 
-1. **帧数预算**：随手拍需要多少帧？在 8 / 16 / 32 / 全部训练帧下对比 COLMAP + 3DGS 和 VGGT → 3DGS。
-2. **VGGT 深度先验**：帧数少时，用 VGGT 深度做监督能挽回多少质量？
+1. **帧数预算**：随手拍摄的视频需要多少帧？在 8 / 16 / 32 / 全部训练帧下对比 COLMAP + 3DGS 和 VGGT → 3DGS。
+2. **VGGT 深度先验**：帧数少时，用 VGGT 深度做监督能修复多少质量？
 
-6 个场景（自拍 desk / lawn / room；Mip-NeRF 360 garden / bicycle / counter）× 4 种帧数 × 3 种方法 = 72 次运行，另有多种子重复实验。
+6 个场景（自己拍摄的 desk / lawn / room；Mip-NeRF 360 garden / bicycle / counter）× 4 种帧数 × 3 种方法 = 72 次运行，另有多种子重复实验。
 
 ## 方法
 
@@ -37,18 +43,18 @@ flowchart LR
 - **VGGT + depth：** 同上，另在训练视角上加一项渲染逆深度与 VGGT 深度之间的 Pearson 损失（λ = 0.2）。
 - **评测：** 测试相机来自训练帧 + 测试帧的单独联合运行，用在训练相机上拟合的 Sim(3) 映射到各模型的坐标系，再冻结高斯进行优化。测试图像不会更新场景。
 
-完整协议见 [实验协议](#实验协议)。
+完整实验方案见 [实验方案](#实验方案)。
 
 ## 结论
 
-1. **帧数预算。** 少于大约 16–32 帧时，两种前端中只有 VGGT 能稳定得到重建：COLMAP 在 N = 8 时 6 个场景失败 4 个，N = 16 时失败 3 个，而 VGGT 从未失败。用 110–180 帧的完整拍摄时，看重质量就应选 COLMAP，它在 6 个场景中的 5 个上领先 2.1–4.6 dB；VGGT 估计位姿仍快 3.5–13 倍，代价就是这段质量差距。
-2. **VGGT 深度先验。** 它没有带来可测量的新视角质量提升：它让渲染深度更接近 VGGT 的深度，但在多种子重复实验中只有两处差异超出噪声（desk N = 32 低 0.68 dB，lawn N = 8 高 0.17 dB）。帧数少时，误差集中在没有任何训练视角看到的区域，训练视角上的深度损失管不到这些区域；真正有用的是更多视角，或能覆盖未见区域的先验。
+1. **帧数预算。** 16 帧及以下时，两种前端中只有 VGGT 能稳定得到重建：COLMAP 在 N = 8 时 6 个场景失败 4 个，N = 16 时失败 3 个，而 VGGT 从未失败。用 110–180 帧的完整拍摄时，COLMAP 质量更高，它在 6 个场景中的 5 个上领先 2.1–4.6 dB；VGGT 质量相较于 COLMAP 较差，但估计位姿快 3.5–13 倍。
+2. **VGGT 深度先验。** 没有带来可测量的新视角质量提升：它让渲染深度更接近 VGGT 的深度，但在多种子重复实验中只有两处差异超出噪声（desk N = 32 低 0.68 dB，lawn N = 8 高 0.17 dB）。帧数少时，误差集中在没有任何训练视角看到的区域，训练视角上的深度损失管不到这些区域；真正有用的是更多视角，或能覆盖未见区域的先验。
 
 ## 主要发现
 
 1. **帧少时 VGGT 可靠、COLMAP 不可靠；帧多时 COLMAP 更好。交叉点约在 N = 16–32。**
    N = 8 时，COLMAP 在 6 个场景中的 4 个上直接失败，其余两个也只注册了 3/8 和 6/8 个训练帧；N = 16 时它在 3 个场景上失败，另有两个只注册了 3/16（bicycle）和 7/16（desk）。VGGT 从未失败。使用全部帧时，COLMAP 在 5 个场景上领先 2.1–4.6 dB，在 desk 上领先 0.7 dB。
-2. **全部帧时，VGGT 输在精度而不是覆盖。** 只看训练视角确实看得到的测试像素，VGGT 仍然落后（garden 21.7 vs 26.3 dB，bicycle 20.7 vs 22.8，counter 24.9 vs 27.2）。它的渲染明显发糊（在 lawn、garden、bicycle 上 PSNR 比 N = 32 高，但 LPIPS 更差），这与前馈位姿彼此不够一致、3DGS 难以还原细节的解释相符。
+2. **全部帧时，VGGT 输在精度而不是覆盖。** 只看训练视角确实看得到的测试像素，VGGT 仍然落后（garden 21.7 vs 26.3 dB，bicycle 20.7 vs 22.8，counter 24.9 vs 27.2）。它的渲染明显发糊（在 lawn、garden、bicycle 上 PSNR 比 N = 32 高，但 LPIPS 更差），可能是因为前馈位姿彼此不够一致、3DGS 难以还原细节。
 3. **深度先验改变了几何，却没改变新视角质量。** 它把训练视角上渲染深度与 VGGT 深度的局部相关系数从 0.4–0.8 提高到 0.7–0.9，但在多种子重复实验中只有两处差异超出噪声：desk N = 32 差了 0.68 dB，lawn N = 8 好了 0.17 dB。
 4. **帧少时，瓶颈是覆盖。** 没有被任何训练视角看到的测试像素比看得到的差 0.5–9 dB，且每帧的未见比例与 PSNR 强负相关。训练视角上的深度先验约束不到这些区域，这也解释了发现 3。
 5. **噪声水平。** 同一配置换随机种子重跑，PSNR 的标准差为 0.06–0.35 dB，因此单次运行中小于约 0.3 dB 的差异不能下结论。
@@ -79,7 +85,7 @@ flowchart LR
 | counter | VGGT | 14.12 | **19.02** | 21.58 | 25.04 |
 | counter | VGGT + 深度 | **14.40** | 18.72 | **22.44** | 24.71 |
 
-COLMAP 在 desk 和 bicycle 的 N = 32 上只注册了 15/32 和 10/32 个训练帧，所以那里比 N = 16 还低。SSIM、LPIPS、耗时和失败列表由 `scripts/summarize.py` 生成（见下文）。
+COLMAP 在 desk 和 bicycle 的 N = 32 上只注册了 15/32 和 10/32 个训练帧，所以那里比 N = 16 还低。
 
 位姿估计耗时（s，单卡 RTX 4090，含模型加载和图像读写）：
 
@@ -92,7 +98,7 @@ COLMAP 在 desk 和 bicycle 的 N = 32 上只注册了 15/32 和 10/32 个训练
 | bicycle（166） | 380 | 68 |
 | counter（180） | 480 | 73 |
 
-## 实验协议
+## 实验方案
 
 - **数据。** 每个场景的帧分为测试集（去掉模糊帧后每 8 帧取 1 帧，与 Mip-NeRF 360 一致）和嵌套的训练集：从其余帧中均匀抽取 N = 8 / 16 / 32 / 全部帧（`scripts/extract_frames.py`）。自拍场景是 1080p 手机视频，以 3 fps 抽帧，按 960×540 训练；Mip-NeRF 360 场景使用 `images_4`。
 - **位姿。** COLMAP 4.2.1 穷举匹配（`scripts/run_colmap.sh`），或 VGGT-1B 一次前向推理，所有帧共享一个相机，取置信度最高的 50% 点作初始化（`scripts/vggt_to_colmap.py`）。
@@ -100,7 +106,7 @@ COLMAP 在 desk 和 bicycle 的 N = 32 上只注册了 15/32 和 10/32 个训练
 - **评测**（`scripts/eval.py`）。测试相机来自训练帧 + 测试帧的联合运行；用共同训练相机拟合的 Sim(3)（旋转由相机朝向求得，尺度和平移由相机中心求得）把它们映射到训练模型的坐标系；冻结高斯，每个测试位姿优化 500 步，之后测 PSNR / SSIM / LPIPS。各方法在所有方法都注册了的测试帧上比较。
 - **分析。** `scripts/coverage_err.py` 按像素是否被任一训练视角看到来拆分测试误差；`scripts/depth_diag.py` 衡量渲染深度与 VGGT 深度的一致性；`scripts/seed_repeat.sh` 用种子 1 和 2 重跑选定配置。
 
-## 复现
+## 运行
 
 ### 环境
 
@@ -158,7 +164,6 @@ RUNS=runs scripts/rerender_traj.sh garden/vggt_all garden/colmap_all   # 用已�
 python scripts/render_orbit.py --runs runs --out results/orbit --scene garden --frames 600   # COLMAP 和 VGGT 模型沿同一条新视角环绕路径渲染
 ```
 
-一次运行（位姿估计、联合运行、7k 步训练、评测）在 RTX 4090 上约 5–10 分钟，COLMAP 用全部帧时最长约 35 分钟。
 
 ### 训练好的模型
 
@@ -167,18 +172,25 @@ python scripts/render_orbit.py --runs runs --out results/orbit --scene garden --
 - `.splat`（7–144 MB）：只有基础颜色，用于支持 antimatter15 `.splat` 格式的网页查看器。
 - `.compressed.ply`（13–276 MB）：PlayCanvas 压缩 PLY，含球谐系数，可用 [SuperSplat](https://superspl.at/editor) 等查看器打开。
 
-每个模型都在各自归一化的世界坐标系里，因此同一场景的 COLMAP 和 VGGT 模型彼此没有对齐；`scripts/render_orbit.py` 演示了如何把一个映射到另一个。`SHA256SUMS` 列出了每个文件的校验值。
+每个模型都在各自归一化的世界坐标系里，因此同一场景的 COLMAP 和 VGGT 模型彼此没有对齐；`scripts/render_orbit.py` 演示了如何把一个映射到另一个。
 
 ## 局限
 
 - 每个场景只拍了一次；主实验网格每个配置只跑了一个种子，多种子重复只覆盖部分配置。
 - 所有运行都在 7k 步停止。在 desk N = 16 上，同一运行的 30k checkpoint 在测试帧上略差（多出的步数过拟合了训练视角），方法排名不变；其他配置没有检查。
 - 帧数少时 COLMAP 的结果不确定。在全新环境中复现 garden N = 8：VGGT 得到 15.67 dB（本文 15.64），但 COLMAP 只注册了 5/8 个训练帧（本文 6/8），得到 13.35 dB（本文 14.27）；在同样的帧上再单独跑 5 次 COLMAP，都注册了 6/8。
-- 覆盖拆分用各模型自己的几何来判断哪些像素被看到，因此只是近似。
+- 判断测试图里的某个像素"有没有被训练视角看到"，靠的是模型自己重建出来的几何；这份几何本身不一定准，所以判断结果也只是近似。
 - 测试相机来自单独的联合运行，并在冻结场景的情况下优化；这是无位姿方法的标准协议，但仍与用真值测试位姿评测不同。
+
+## 致谢
+
+- [VGGT](https://github.com/facebookresearch/vggt)
+- [gsplat](https://github.com/nerfstudio-project/gsplat)：3DGS 训练，`trainer/` 改编自其 `examples/`
+- [COLMAP](https://colmap.github.io/)
+- [Mip-NeRF 360](https://jonbarron.info/mipnerf360/)
 
 ## 许可证
 
-本仓库代码以 [MIT License](LICENSE) 发布，`trainer/` 除外：它改编自 gsplat，以 Apache License 2.0 发布（见 [`trainer/NOTICE.md`](trainer/NOTICE.md)）。
+[MIT](LICENSE)，`trainer/` 除外（Apache 2.0，见 [`NOTICE.md`](trainer/NOTICE.md)）。
 
-第三方模型和库沿用各自的许可证。特别地，VGGT 权重按其原始许可证使用（仅限非商业用途），详见 VGGT 仓库。
+VGGT 权重仅限非商业用途，以 VGGT 仓库的许可证为准；其他第三方依赖沿用各自的许可证。

@@ -1,8 +1,14 @@
 # VGGT-Splat
 
-English | [简体中文](README.zh-CN.md)
+English | [中文](README.zh-CN.md)
 
-Casual phone video → [VGGT](https://github.com/facebookresearch/vggt) feed-forward poses, points and depth → 3D Gaussian Splatting, compared against the usual COLMAP → 3DGS pipeline.
+**Casual phone video → [VGGT](https://github.com/facebookresearch/vggt) feed-forward poses, points and depth → 3D Gaussian Splatting, compared against the usual COLMAP → 3DGS pipeline.**
+
+[![Project Page](https://img.shields.io/badge/Project-Page-2ea44f?style=flat-square)](https://chu-jiaming.github.io/vggt-splat/)
+![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=flat-square&logo=python&logoColor=white)
+![PyTorch](https://img.shields.io/badge/PyTorch-2.9.1-EE4C2C?style=flat-square&logo=pytorch&logoColor=white)
+![gsplat](https://img.shields.io/badge/gsplat-512d366-6C63FF?style=flat-square)
+![License: MIT](https://img.shields.io/badge/License-MIT-lightgrey?style=flat-square)
 
 **Project page**: https://chu-jiaming.github.io/vggt-splat/ · **Release**: [v1.0.0](https://github.com/chu-jiaming/VGGT-Splat/releases/tag/v1.0.0) (trained models, self-captured data)
 
@@ -41,14 +47,14 @@ Full protocol: [Protocol](#protocol).
 
 ## Conclusions
 
-1. **Frame budget.** Below about 16–32 frames, VGGT is the only one of the two front ends that reliably gives a reconstruction: COLMAP fails on 4 of 6 scenes at N = 8 and 3 of 6 at N = 16, while VGGT never fails. With a full capture of 110–180 frames, COLMAP is the better choice when quality matters, leading by 2.1–4.6 dB on five of six scenes; VGGT remains 3.5–13× faster at estimating poses, at that cost in quality.
-2. **VGGT depth prior.** It does not recover measurable novel-view quality: it pulls rendered depth towards VGGT's depth, but across seed repeats only two of the differences exceed noise (−0.68 dB on desk N = 32, +0.17 dB on lawn N = 8). With few frames the error sits in regions that no training view sees, and a depth loss on training views cannot reach them; more views, or priors that cover unseen regions, are what would help.
+1. **Frame budget.** At 16 frames or fewer, VGGT is the only one of the two front ends that reliably gives a reconstruction: COLMAP fails on 4 of 6 scenes at N = 8 and 3 of 6 at N = 16, while VGGT never fails. With a full capture of 110–180 frames, COLMAP gives higher quality, leading by 2.1–4.6 dB on five of six scenes; VGGT is less accurate than COLMAP but 3.5–13× faster at estimating poses.
+2. **VGGT depth prior.** No measurable gain in novel-view quality: it pulls rendered depth towards VGGT's depth, but across seed repeats only two of the differences exceed noise (−0.68 dB on desk N = 32, +0.17 dB on lawn N = 8). With few frames the error sits in regions that no training view sees, and a depth loss on training views cannot reach them; more views, or priors that cover unseen regions, are what would help.
 
 ## Findings
 
 1. **Few frames: VGGT is reliable, COLMAP is not. Many frames: COLMAP is better. The crossover is around N = 16–32.**
    At N = 8, COLMAP fails outright on 4 of 6 scenes and registers only 3/8 and 6/8 training frames on the other two; at N = 16 it fails on 3 scenes and registers 3/16 (bicycle) and 7/16 (desk) on two more. VGGT never fails. With all frames, COLMAP leads by 2.1–4.6 dB on five scenes and 0.7 dB on desk.
-2. **With all frames, VGGT loses on precision, not coverage.** Restricted to test pixels that the training views do see, VGGT is still behind (garden 21.7 vs 26.3 dB, bicycle 20.7 vs 22.8, counter 24.9 vs 27.2). Its renders are visibly smeared (higher PSNR than at N = 32 but worse LPIPS on lawn, garden and bicycle), consistent with feed-forward poses that are not mutually consistent enough for 3DGS to resolve fine detail.
+2. **With all frames, VGGT loses on precision, not coverage.** Restricted to test pixels that the training views do see, VGGT is still behind (garden 21.7 vs 26.3 dB, bicycle 20.7 vs 22.8, counter 24.9 vs 27.2). Its renders are visibly smeared (higher PSNR than at N = 32 but worse LPIPS on lawn, garden and bicycle), likely because feed-forward poses are not mutually consistent enough for 3DGS to resolve fine detail.
 3. **The depth prior changes geometry but not novel-view quality.** It raises the local correlation between rendered depth and VGGT depth on training views from 0.4–0.8 to 0.7–0.9, yet across seed repeats only two differences exceed noise: desk N = 32 gets 0.68 dB worse and lawn N = 8 gets 0.17 dB better.
 4. **With few frames, the bottleneck is coverage.** Test pixels not seen by any training view are 0.5–9 dB worse than seen ones, and the per-frame unseen fraction is strongly anti-correlated with PSNR. A depth prior on training views cannot constrain those regions, which also explains finding 3.
 5. **Noise level.** Re-running the same configuration with different seeds moves PSNR by a standard deviation of 0.06–0.35 dB, so single-run differences below about 0.3 dB are not conclusive.
@@ -79,7 +85,7 @@ Test PSNR (dB) after test-time pose optimization, averaged over the test frames 
 | counter | VGGT | 14.12 | **19.02** | 21.58 | 25.04 |
 | counter | VGGT + depth | **14.40** | 18.72 | **22.44** | 24.71 |
 
-COLMAP at N = 32 on desk and bicycle registers only 15/32 and 10/32 training frames, which is why it drops below N = 16 there. SSIM, LPIPS, timings and the failure list are produced by `scripts/summarize.py` (see below).
+COLMAP at N = 32 on desk and bicycle registers only 15/32 and 10/32 training frames, which is why it drops below N = 16 there.
 
 Pose estimation time (s, single RTX 4090, includes model loading and image I/O):
 
@@ -100,7 +106,7 @@ Pose estimation time (s, single RTX 4090, includes model loading and image I/O):
 - **Evaluation** (`scripts/eval.py`). Test cameras come from a joint run on training + test frames; a Sim(3) fitted on the shared training cameras (rotation from camera orientations, scale and translation from centers) maps them into the trained model's frame; with the Gaussians frozen, each test pose is refined for 500 steps; PSNR / SSIM / LPIPS are measured after refinement. Methods are compared on the test frames that all of them registered.
 - **Analysis.** `scripts/coverage_err.py` splits test error by whether a pixel is seen by any training view; `scripts/depth_diag.py` measures agreement between rendered depth and VGGT depth; `scripts/seed_repeat.sh` re-runs selected configurations with seeds 1 and 2.
 
-## Reproducing
+## Usage
 
 ### Environment
 
@@ -158,8 +164,6 @@ RUNS=runs scripts/rerender_traj.sh garden/vggt_all garden/colmap_all   # slower 
 python scripts/render_orbit.py --runs runs --out results/orbit --scene garden --frames 600   # COLMAP and VGGT models along one shared novel orbit
 ```
 
-One run (pose estimation, joint run, 7k-step training, evaluation) takes about 5–10 minutes on an RTX 4090, and up to about 35 minutes for COLMAP with all frames.
-
 ### Trained models
 
 The [v1.0.0 release](https://github.com/chu-jiaming/VGGT-Splat/releases/tag/v1.0.0) has the all-frames COLMAP and VGGT models of every scene (`<scene>_<colmap|vggt>_all`, step 7,000), exported by `scripts/export_splats.py` in two formats:
@@ -167,18 +171,25 @@ The [v1.0.0 release](https://github.com/chu-jiaming/VGGT-Splat/releases/tag/v1.0
 - `.splat` (7–144 MB): base color only, for web viewers that read the antimatter15 `.splat` format.
 - `.compressed.ply` (13–276 MB): PlayCanvas compressed PLY with spherical harmonics, for viewers such as [SuperSplat](https://superspl.at/editor).
 
-Each model is in its own normalized world frame, so the COLMAP and VGGT models of a scene are not aligned with each other; `scripts/render_orbit.py` shows how to map one into the other. `SHA256SUMS` lists checksums for every file.
+Each model is in its own normalized world frame, so the COLMAP and VGGT models of a scene are not aligned with each other; `scripts/render_orbit.py` shows how to map one into the other.
 
 ## Limitations
 
 - One capture per scene and, for the main grid, one seed; seed repeats cover only a subset of configurations.
 - Training stops at 7k steps for every run. On desk N = 16, the 30k checkpoint of the same run was slightly worse on test frames (extra steps overfit the training views) with the same method ranking; other configurations were not checked.
 - COLMAP is not deterministic with few frames. Reproducing garden N = 8 in a fresh environment gave VGGT 15.67 dB (15.64 here), but COLMAP registered 5/8 training frames instead of 6/8 and reached 13.35 dB instead of 14.27; five further COLMAP runs on the same frames all registered 6/8.
-- The coverage split uses each model's own geometry to decide what is seen, so it is an approximation.
+- Whether a test pixel is "seen" by a training view is judged from the geometry each model reconstructs; that geometry may itself be inaccurate, so the split is only an approximation.
 - Test cameras are obtained from a separate joint run and refined with the scene frozen; this is the standard protocol for pose-free methods but still differs from evaluating with ground-truth test poses.
+
+## Acknowledgements
+
+- [VGGT](https://github.com/facebookresearch/vggt)
+- [gsplat](https://github.com/nerfstudio-project/gsplat): 3DGS training; `trainer/` is adapted from its `examples/`
+- [COLMAP](https://colmap.github.io/)
+- [Mip-NeRF 360](https://jonbarron.info/mipnerf360/)
 
 ## License
 
-Code in this repository is released under the [MIT License](LICENSE), except `trainer/`, which is adapted from gsplat and released under the Apache License 2.0 (see [`trainer/NOTICE.md`](trainer/NOTICE.md)).
+[MIT](LICENSE), except `trainer/` (Apache 2.0, see [`NOTICE.md`](trainer/NOTICE.md)).
 
-Third-party models and libraries keep their own licenses. In particular, VGGT weights are used under their original license (non-commercial use); see the VGGT repository.
+VGGT weights are for non-commercial use only, under the license in the VGGT repository; other third-party dependencies keep their own licenses.
