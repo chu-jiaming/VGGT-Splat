@@ -6,8 +6,6 @@
 
 **项目主页**：https://chu-jiaming.github.io/vggt-splat/ · **Release**：[v1.0.0](https://github.com/chu-jiaming/VGGT-Splat/releases/tag/v1.0.0)（训练好的模型、自拍数据）
 
-**状态**：已完成。所有实验、图表和项目主页以 v1.0.0 为最终版本。
-
 <p align="center">
   <img src="assets/garden_orbit.gif" width="800" alt="Mip-NeRF 360 garden，全部帧：COLMAP + 3DGS（左）与 VGGT + 3DGS（右）沿同一条新视角环绕路径渲染">
   <br>
@@ -20,6 +18,26 @@
 2. **VGGT 深度先验**：帧数少时，用 VGGT 深度做监督能挽回多少质量？
 
 6 个场景（自拍 desk / lawn / room；Mip-NeRF 360 garden / bicycle / counter）× 4 种帧数 × 3 种方法 = 72 次运行，另有多种子重复实验。
+
+## 方法
+
+```mermaid
+flowchart LR
+    A["手机视频或图像集<br/>测试集 + N = 8 · 16 · 32 · 全部<br/>训练帧"] --> B["COLMAP<br/>穷举匹配 + SfM"]
+    A --> C["VGGT-1B<br/>一次前向推理"]
+    B -->|"位姿、点云"| D["3DGS，7k 步<br/>+ 逐相机位姿优化"]
+    C -->|"位姿、点云"| D
+    C -.->|"深度先验"| D
+    D --> E["对齐测试位姿<br/>Sim(3) + 优化 500 步<br/>场景冻结"]
+    E --> F["PSNR / SSIM / LPIPS<br/>可见 / 不可见像素"]
+```
+
+- **COLMAP：** 标准前端，在 N 张训练帧上做穷举特征匹配和增量式 SfM。
+- **VGGT：** VGGT-1B 一次前向推理预测全部 N 帧的相机、点图和深度；取置信度最高的 50% 点初始化高斯。
+- **VGGT + depth：** 同上，另在训练视角上加一项渲染逆深度与 VGGT 深度之间的 Pearson 损失（λ = 0.2）。
+- **评测：** 测试相机来自训练帧 + 测试帧的单独联合运行，用在训练相机上拟合的 Sim(3) 映射到各模型的坐标系，再冻结高斯进行优化。测试图像不会更新场景。
+
+完整协议见 [实验协议](#实验协议)。
 
 ## 结论
 

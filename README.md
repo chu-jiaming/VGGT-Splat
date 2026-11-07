@@ -6,8 +6,6 @@ Casual phone video → [VGGT](https://github.com/facebookresearch/vggt) feed-for
 
 **Project page**: https://chu-jiaming.github.io/vggt-splat/ · **Release**: [v1.0.0](https://github.com/chu-jiaming/VGGT-Splat/releases/tag/v1.0.0) (trained models, self-captured data)
 
-**Status**: complete. All experiments, figures and the project page are final as of v1.0.0.
-
 <p align="center">
   <img src="assets/garden_orbit.gif" width="800" alt="Mip-NeRF 360 garden, all frames: COLMAP + 3DGS (left) and VGGT + 3DGS (right) rendered along the same novel orbit">
   <br>
@@ -20,6 +18,26 @@ Casual phone video → [VGGT](https://github.com/facebookresearch/vggt) feed-for
 2. **VGGT depth prior**: with few frames, how much quality does VGGT depth supervision recover?
 
 6 scenes (self-captured desk / lawn / room; Mip-NeRF 360 garden / bicycle / counter) × 4 frame budgets × 3 methods = 72 runs, plus seed repeats.
+
+## Method
+
+```mermaid
+flowchart LR
+    A["Phone video or image set<br/>test split + N = 8 · 16 · 32 · all<br/>training frames"] --> B["COLMAP<br/>exhaustive matching + SfM"]
+    A --> C["VGGT-1B<br/>one forward pass"]
+    B -->|"poses, points"| D["3DGS, 7k steps<br/>+ per-camera pose refinement"]
+    C -->|"poses, points"| D
+    C -.->|"depth prior"| D
+    D --> E["Align test poses<br/>Sim(3) + 500-step refine<br/>scene frozen"]
+    E --> F["PSNR / SSIM / LPIPS<br/>seen vs. unseen pixels"]
+```
+
+- **COLMAP:** the standard front end, exhaustive feature matching and incremental SfM on the N training frames.
+- **VGGT:** VGGT-1B predicts cameras, a point map and depth for all N frames in one forward pass; the top 50% most confident points initialize the Gaussians.
+- **VGGT + depth:** the same, plus a Pearson loss between rendered inverse depth and VGGT depth on the training views (λ = 0.2).
+- **Evaluation:** test cameras come from a separate joint run on training + test frames, are mapped into each model's frame by a Sim(3) fitted on the training cameras, and are refined with the Gaussians frozen. No test image updates the scene.
+
+Full protocol: [Protocol](#protocol).
 
 ## Conclusions
 
