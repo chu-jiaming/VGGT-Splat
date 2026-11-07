@@ -52,7 +52,7 @@ Full protocol: [Protocol](#protocol).
 
 ## Findings
 
-1. **Few frames: VGGT is reliable, COLMAP is not. Many frames: COLMAP is better. The crossover is around N = 16–32.**
+1. **At 16 frames or fewer, VGGT is reliable and COLMAP is not; with all frames, COLMAP is better.**
    At N = 8, COLMAP fails outright on 4 of 6 scenes and registers only 3/8 and 6/8 training frames on the other two; at N = 16 it fails on 3 scenes and registers 3/16 (bicycle) and 7/16 (desk) on two more. VGGT never fails. With all frames, COLMAP leads by 2.1–4.6 dB on five scenes and 0.7 dB on desk.
 2. **With all frames, VGGT loses on precision, not coverage.** Restricted to test pixels that the training views do see, VGGT is still behind (garden 21.7 vs 26.3 dB, bicycle 20.7 vs 22.8, counter 24.9 vs 27.2). Its renders are visibly smeared (higher PSNR than at N = 32 but worse LPIPS on lawn, garden and bicycle), likely because feed-forward poses are not mutually consistent enough for 3DGS to resolve fine detail.
 3. **The depth prior changes geometry but not novel-view quality.** It raises the local correlation between rendered depth and VGGT depth on training views from 0.4–0.8 to 0.7–0.9, yet across seed repeats only two differences exceed noise: desk N = 32 gets 0.68 dB worse and lawn N = 8 gets 0.17 dB better.
