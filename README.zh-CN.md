@@ -106,7 +106,7 @@ COLMAP 在 desk 和 bicycle 的 N = 32 上只注册了 15/32 和 10/32 个训练
 - **评测**（`scripts/eval.py`）。测试相机来自训练帧 + 测试帧的联合运行；用共同训练相机拟合的 Sim(3)（旋转由相机朝向求得，尺度和平移由相机中心求得）把它们映射到训练模型的坐标系；冻结高斯，每个测试位姿优化 500 步，之后测 PSNR / SSIM / LPIPS。各方法在所有方法都注册了的测试帧上比较。
 - **分析。** `scripts/coverage_err.py` 按像素是否被任一训练视角看到来拆分测试误差；`scripts/depth_diag.py` 衡量渲染深度与 VGGT 深度的一致性；`scripts/seed_repeat.sh` 用种子 1 和 2 重跑选定配置。
 
-## 运行
+## 使用
 
 ### 环境
 
@@ -144,7 +144,7 @@ data/<scene>/splits/              test.txt、train_{8,16,32,all}.txt（由 extra
 
 ### 运行
 
-`scripts/run_all.sh` 对每个场景 × 方法 × N 依次做位姿估计 → 联合运行 → 训练 → 评测，每次运行在 `results/<scene>.csv` 追加一行，并能从已有输出续跑。路径由环境变量指定：`DATA`、`RUNS`、`RESULTS`、`VENV`（虚拟环境，其 `bin/` 放在 `PATH` 最前）、`HF_HOME` / `TORCH_HOME`（权重缓存）和 `HF_ENDPOINT`（默认 `https://hf-mirror.com`；在中国大陆以外请设 `HF_ENDPOINT=https://huggingface.co`）。`SCENES`、`METHODS`、`NS` 用来选子集，例如 `SCENES=garden NS=8` 约 10 分钟即可跑完一次检查。
+`scripts/run_all.sh` 对每个场景 × 方法 × N 依次做位姿估计 → 联合运行 → 训练 → 评测，每次运行在 `results/<scene>.csv` 追加一行，并能从已有输出续跑。路径由环境变量指定：`DATA`、`RUNS`、`RESULTS`、`VENV`（虚拟环境，其 `bin/` 放在 `PATH` 最前）、`HF_HOME` / `TORCH_HOME`（权重缓存）和 `HF_ENDPOINT`（默认 `https://hf-mirror.com`，也可设为 `https://huggingface.co`）。`SCENES`、`METHODS`、`NS` 用来选子集，例如 `SCENES=garden NS=8` 约 10 分钟即可跑完一次检查。
 
 ```bash
 export VENV=$PWD/.venv DATA=$PWD/data RUNS=$PWD/runs RESULTS=$PWD/results

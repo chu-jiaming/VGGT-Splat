@@ -144,7 +144,7 @@ data/<scene>/splits/              test.txt, train_{8,16,32,all}.txt (from extrac
 
 ### Run
 
-`scripts/run_all.sh` runs pose estimation → joint run → training → evaluation for every scene × method × N and appends one row per run to `results/<scene>.csv`. It resumes from existing outputs. Paths come from environment variables: `DATA`, `RUNS`, `RESULTS`, `VENV` (the virtual environment, its `bin/` goes first on `PATH`), `HF_HOME` / `TORCH_HOME` (weight caches) and `HF_ENDPOINT` (defaults to `https://hf-mirror.com`; set `HF_ENDPOINT=https://huggingface.co` outside mainland China). `SCENES`, `METHODS` and `NS` select a subset, e.g. `SCENES=garden NS=8` for a ~10 minute check.
+`scripts/run_all.sh` runs pose estimation → joint run → training → evaluation for every scene × method × N and appends one row per run to `results/<scene>.csv`. It resumes from existing outputs. Paths come from environment variables: `DATA`, `RUNS`, `RESULTS`, `VENV` (the virtual environment, its `bin/` goes first on `PATH`), `HF_HOME` / `TORCH_HOME` (weight caches) and `HF_ENDPOINT` (defaults to `https://hf-mirror.com`; can be set to `https://huggingface.co`). `SCENES`, `METHODS` and `NS` select a subset, e.g. `SCENES=garden NS=8` for a ~10 minute check.
 
 ```bash
 export VENV=$PWD/.venv DATA=$PWD/data RUNS=$PWD/runs RESULTS=$PWD/results
